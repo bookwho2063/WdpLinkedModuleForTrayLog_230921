@@ -42,11 +42,11 @@ class moduleGui:
 
             btnStart = Button(root, width=20, height=5, padx=20, text="실 행", repeatdelay=1000, command=lambda: self.btnClickStart(textArea, count))
             btnStop = Button(root, width=20, height=5, padx=20, text="중 지", command=lambda: self.btnClickEnd())
-            btnLog = Button(root, width=20, height=5, padx=20, text="로그내역 열기", command=lambda: self.btnClickLogOpen())
+            #btnLog = Button(root, width=20, height=5, padx=20, text="로그내역 열기", command=lambda: self.btnClickLogOpen())
 
             btnStart.place(x=10, y=285)
             btnStop.place(x=225, y=285)
-            btnLog.place(x=440, y=285)
+            #btnLog.place(x=440, y=285)
 
             return root, textArea
         except Exception as e:

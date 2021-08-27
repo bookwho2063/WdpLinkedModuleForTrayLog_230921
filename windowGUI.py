@@ -8,7 +8,12 @@ import queue
 import os
 import time
 import main
+import readIniFile as readIni
 
+# DRxS.ini 파일 정보 추출
+iniMng = readIni.Read_Ini(iniPath='resource/DRxS.ini')
+iniDrxsDict = iniMng.returnIniDict('DRXS')
+iniDatabaseDict = iniMng.returnIniDict('DATABASE')
 
 class GUI:
     """
@@ -30,10 +35,10 @@ class GUI:
         self.frame.pack()
         self.btnStart = Button(self.tk, width=20, height=5, padx=20, text="실 행", repeatdelay=1000, command=lambda : self.btnSwitch('Start'))
         self.btnStop = Button(self.tk, width=20, height=5, padx=20, text="중 지", repeatdelay=1000, command=lambda : self.btnSwitch('Stop'))
-        self.btnShowLog = Button(self.tk, width=20, height=5, padx=20, text="로그폴더", repeatdelay=1000, command=self.btnShowLogClick)
+        #self.btnShowLog = Button(self.tk, width=20, height=5, padx=20, text="로그폴더", repeatdelay=1000, command=self.btnShowLogClick)
         self.btnStart.place(x=10, y=285)
         self.btnStop.place(x=225, y=285)
-        self.btnShowLog.place(x=440, y=285)
+        #self.btnShowLog.place(x=440, y=285)
         self.processFlag = True         # 실행 종료 플래그
 
     def tkRun(self):
@@ -85,27 +90,26 @@ class GUI:
         # m_thread = main.ThreadTask(self.queue, self)
         # m_thread.start()
         # m_thread.join()
-        print("### 무조건 들어옵니다. flag :: ", self.processFlag)
         # TODO : (210727) INI 파일을 통해서 반복설정 시간을 가져와서 처리할 수 있도록 해야함
         if self.processFlag == True:
             # 버튼상태 비활성화
-            print("### 실행합니다")
             if self.btnStart['state'] == tkinter.NORMAL:
                 self.btnStart['state'] = tkinter.DISABLED
 
             self.queue = queue.Queue()
-            self.textInsert("연계프로세스 시작")
+            self.textInsert("위드팜 - 내손안의약국 처방전 연계프로세스를 실행합니다.")
             self.lineCount = self.lineCount + 1
 
             main.run_module(self)  # 연계 프로세스 수행
             # self.processHandle = self.tk.after(10000, lambda : self.btnSwitch('Start'))
-            self.processHandle = self.tk.after(120000, self.btnStartClick)
+
+            self.processHandle = self.tk.after(int(iniDrxsDict['lifecycle']), self.btnStartClick)
 
         else:
             if self.btnStart['state'] == tkinter.DISABLED:
                 self.btnStart['state'] = tkinter.NORMAL
 
-            self.textInsert("연계 모듈을 중지합니다.")
+            self.textInsert("위드팜 - 내손안의약국 처방전 연계프로세스를 중지합니다.")
             # self.tk.after(5000, lambda : self.tk.destroy())
             self.processFlag = False
             self.tk.after_cancel(self.processHandle)
@@ -125,7 +129,7 @@ class GUI:
         :return: 
         """
         print("##### 프로세스종료버튼 클릭")
-        self.textInsert("연계프로세스를 중지합니다.")
+        self.textInsert("위드팜 - 내손안의약국 처방전 연계프로세스를 중지합니다.")
         self.processFlag = False
 
     def btnShowLogClick(self):
@@ -133,5 +137,8 @@ class GUI:
         로그내역열기 버튼 클릭
         :return: 
         """
-        print("로그폴더를 오픈합니다.")
-        os.startfile('C:\DRxSolution\logs')
+        logPath = iniDrxsDict['logpath']
+        if os.path.isdir(logPath):
+            os.startfile(logPath)
+        else:
+            os.mkdir(logPath)

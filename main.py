@@ -64,8 +64,8 @@ def environmental_inspection_part(gui_root):
 
     print("##### iniDrxsDict_DRXS :: ", iniDrxsDict)
     print("##### iniDatabaseDict_DATABASE :: ", iniDatabaseDict)
-    gui_root.textInsert("연계모듈 환경검사를 수행합니다.")
-    # gui_root.textInsert()
+    gui_root.textInsert("위드팜 - 내손안의약국 처방전 연계프로세스 환경검사를 수행합니다.")
+
     # DB 연동 테스트
     # dbConn = connDb.Manage_logcal_db(iniDatabaseDict['server'], iniDatabaseDict['database'], iniDatabaseDict['username'], iniDatabaseDict['password'])
     dbConn = connDb.Manage_logcal_db(regValue, iniDatabaseDict['database'], iniDatabaseDict['username'], iniDatabaseDict['password'])
@@ -74,12 +74,12 @@ def environmental_inspection_part(gui_root):
 
     if dbConnFlag == False:
         print('##### (환경검사) 샘플쿼리 동작 오류로 프로세스 종료')
-        gui_root.textInsert("데이터베이스 접근 오류로 프로세스를 종료합니다.")
+        gui_root.textInsert("ERROR :: 데이터베이스 접근 오류로 프로세스를 종료합니다.")
         return False
     dbConn.conn_close()
 
     # 회원 여부 검증을 위하여 회원정보 추출
-    gui_root.textInsert("약국회원정보를 추출하여 내손안의약국 회원여부를 판별합니다.")
+    gui_root.textInsert("INFO :: 약국회원정보를 추출하여 내손안의약국 회원여부를 판별합니다.")
     dbConn.conn_open()
     tempQuery = []
     tempQuery.append("SELECT")
@@ -100,8 +100,7 @@ def environmental_inspection_part(gui_root):
     checkUrl = iniDrxsDict['apiurl'] + '/apiServerConn.drx?PharmNo='+queryResult.iloc[0][1]+'&SaupNo='+queryResult.iloc[0][2]
     # print('##### checkUrl :: ', checkUrl)
     if mngApi.api_conn_check(checkUrl) == "NO_USER":
-        gui_root.textInsert("현재 사용자는 내손안의약국 약국회원이 아닙니다.")
-        print('##### (환경검사) 현재 사용자는 내손안의약국 약국회원이 아닙니다.')
+        gui_root.textInsert("INFO :: 위드팜 - 내손안의약국 연계 회원이 아닙니다.")
         return False
 
     # API를 이용하여 내손안의약국 약국회원 인증 2차검증
@@ -118,11 +117,10 @@ def environmental_inspection_part(gui_root):
     # 회원약국 체크 후 결과 값 검증
     if certifiApiDic['Status'] == 'error':
         print("##### (환경검사) 회원약국이 아닙니다.")
-        gui_root.textInsert("해당 약국은 내손안의약국 회원약국이 아닙니다. 프로그램을 종료합니다.")
-        exit()
+        gui_root.textInsert("INFO :: 위드팜 - 내손안의약국 연계 회원이 아닙니다.")
     elif certifiApiDic['Status'] == 'ok':
         print("##### (환경검사) {} 약국회원 인증 완료!! ".format(queryResult.iloc[0][0]))
-        gui_root.textInsert(str("내손안의약국 회원 {} 약국 인증을 완료하였습니다.".format(queryResult.iloc[0][0])))
+        gui_root.textInsert(str("내손안의약국 연계회원 \'{}\' 약국의 인증을 완료하였습니다.".format(queryResult.iloc[0][0])))
         # 전역변수 약국회원정보 지정
         global PharmNm
         global PharmNo
@@ -597,26 +595,22 @@ def run_module(root):
     :return:
     """
     # INI 정보중 청구SW 정보를 기준으로 수행
-    print("##### 현재 연계모듈의 수행 타입을 확인합니다. :: ", iniDrxsDict['moduletype'])
-    root.textInsert("##### 현재 연계모듈의 수행 타입을 확인합니다.")
     confirmUserList = []
 
     if iniDrxsDict['moduletype'] == 'WP':  # 위드팜 청구SW 사용
         # 환경체크 수행
         environmentalReturn = environmental_inspection_part(root)
-        print("##### 환경체크 수행 결과 :: ", environmentalReturn)
 
         # 환경체크 결과값 실패일경우
         if environmentalReturn == False:
-            root.textInsert("해당 약국은 현재 내손안의약국 약국회원으로 가입되지않은 회원사입니다.")
-            root.textInsert("처방전 연계를 수행할 수 없습니다.")
-            print("##### 비회원접근으로 인한 연계 미수행")
+            root.textInsert("인증실패 :: 해당 약국은 현재 내손안의약국 약국회원으로 가입되지않은 회원사입니다.")
         else:  # 환경체크 성공
-            root.textInsert("내손안의약국 처방전 연계모듈 환경검사를 성공하였습니다.")
-            root.textInsert("##### 위드팜 회원약국 정보 #####")
+            root.textInsert("위드팜 - 내손안의약국 처방전 연계프로세스 환경검사를 성공하였습니다.")
+            root.textInsert("----- 위드팜 회원약국 정보 -----")
             root.textInsert(str("약국명 : {}".format(userInfoDict['pharmNm'])))
             root.textInsert(str("대표명 : {}".format(userInfoDict['ceoNm'])))
-            root.textInsert(str("내손안의약국ID : {}".format(userInfoDict['PharmacyIdx'])))
+            root.textInsert(str("내손안의약국 ID : {}".format(userInfoDict['PharmacyIdx'])))
+            root.textInsert("-----------------------------")
             # print("##### 접속한 약국의 회원정보 (위드팜) :: ", userInfoDict)  # 모듈사용중인 약국회원 정보 (전역변수)
             root.textInsert("처방전 연계를 위한 연계요청프로세스를 시작합니다.")
             confirmUserList = request_server_part(root)  # 요청부 함수 수행
@@ -624,7 +618,7 @@ def run_module(root):
 
             finalFlag = response_server_part(confirmUserList, root)  # 전송부 함수 수행
 
+# 메인 프로세스 시작
 if __name__ == '__main__':
-    print("##### 연계프로세스를 수행합니다.")
     root = windowGUI.GUI()
     root.tkRun()
