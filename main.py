@@ -7,14 +7,15 @@ import time
 import schedule
 import tkinter as tkinter
 from tkinter import *
-
+import windowMsgCommon as commonMsg
+import winreg
 import commonCode
 import connectionDbPyodbc as connDb
 import connectionApi as connApi
 import readIniFile as readIni
 import windowGUI
 import threading
-import queue
+
 
 # 모듈 사용 약국정보 딕셔너리 전역변수
 userInfoDict = dict()
@@ -22,8 +23,17 @@ userInfoDict = dict()
 # 최종연계회원정보리스트 전역변수
 userInfoListGlobal = []
 
+# 레지스트리를 이용하여 INI정보 업데이트
+regRoot = winreg.ConnectRegistry(None, winreg.HKEY_CURRENT_USER)
+regSub = winreg.OpenKey(regRoot, 'SOFTWARE\\WPharmErp')
+regServerValue, regServerType = winreg.QueryValueEx(regSub, 'SERVER')
+
+iniMng = readIni.Read_Ini(iniPath='./resource/DRxS.ini')
+if iniMng.update_ini_file("DATABASE", "SERVER", regServerValue) == 'error':
+    print("##### INI 설정정보 변경에 실패하였습니다.")
+    raise ConnectionError
+
 # DRxS.ini 파일 정보 추출
-iniMng = readIni.Read_Ini(iniPath='resource/DRxS.ini')
 iniDrxsDict = iniMng.returnIniDict('DRXS')
 iniDatabaseDict = iniMng.returnIniDict('DATABASE')
 
@@ -61,14 +71,15 @@ def environmental_inspection_part(gui_root):
     common = commonCode.commonCode()
     regValue, regType = common.read_regist("SERVER")
 
-
-    print("##### iniDrxsDict_DRXS :: ", iniDrxsDict)
-    print("##### iniDatabaseDict_DATABASE :: ", iniDatabaseDict)
+    print("##### regValue :: ", regValue)
+    print("##### regType :: ", regType)
+    print("##### 첫 쿼리 iniDrxsDict_DRXS :: ", iniDrxsDict)
+    print("##### 첫 쿼리 iniDatabaseDict_DATABASE :: ", iniDatabaseDict)
     gui_root.textInsert("위드팜 - 내손안의약국 처방전 연계프로세스 환경검사를 수행합니다.")
 
     # DB 연동 테스트
     # dbConn = connDb.Manage_logcal_db(iniDatabaseDict['server'], iniDatabaseDict['database'], iniDatabaseDict['username'], iniDatabaseDict['password'])
-    dbConn = connDb.Manage_logcal_db(regValue, iniDatabaseDict['database'], iniDatabaseDict['username'], iniDatabaseDict['password'])
+    dbConn = connDb.Manage_logcal_db(iniDatabaseDict['server'], iniDatabaseDict['database'], iniDatabaseDict['username'], iniDatabaseDict['password'])
     dbConn.conn_open()
     dbConnFlag = dbConn.send_sample_query()
 
@@ -88,7 +99,7 @@ def environmental_inspection_part(gui_root):
     tempQuery.append(", PharmNo")
     tempQuery.append(", SaupNo")
     tempQuery.append(", CeoNm")
-    tempQuery.append(", CeoJmno")
+    tempQuery.append(", CeoJmno")           
     tempQuery.append("FROM dbo.InfoCompany")
     userCertificationQuery = " ".join(tempQuery)
     queryResult = dbConn.send_query(userCertificationQuery)
@@ -156,13 +167,12 @@ def request_server_part(gui_root):
     gui_root.textInsert("위드팜 처방전 연계 요청부 프로세스를 수행합니다.")
     # API 클래스 생성
     mngApi = connApi.api_manager()
-
+    dbConn = connDb.Manage_logcal_db(iniDatabaseDict['server'], iniDatabaseDict['database'], iniDatabaseDict['username'], iniDatabaseDict['password'])
     # 약국회원정보를 이용하여 회원약국의 내손안의약국 단골회원을 조회한다.
     # print("##### 약국회원정보 :: ", userInfoDict)
-    ## TODO : checkUrl 의 마지막 인자 (약국회원가입일자) 하드코딩된 것 변경해야함 (210701)
-    ## TODO : checkUrl 의 마지막 인자 (약국회원가입일자) 빼는게 나을듯, 언제 이후 회원을 받을 필요가 없음 (210727)
+
     gui_root.textInsert("처방전 연계를 위하여 약국회원의 단골회원정보를 요청합니다.")
-    checkUrl = iniDrxsDict['apiurl'] + "/favoritUserList.drx?PharmacyIdx="+userInfoDict['PharmacyIdx']+"&PharmNo="+userInfoDict['pharmNo']+"&SaupNo="+userInfoDict['saupNo']+"&GetDate=20210520"
+    checkUrl = iniDrxsDict['apiurl'] + "/favoritUserList.drx?PharmacyIdx="+userInfoDict['PharmacyIdx']+"&PharmNo="+userInfoDict['pharmNo']+"&SaupNo="+userInfoDict['saupNo']
     # print("##### checkUrl :: ", checkUrl)
     userInfoKey, userInfoList = mngApi.api_conn(checkUrl)
     # print("##### 연계대상목록요청정보키(userInfoKey) :: ", userInfoKey)
@@ -173,7 +183,7 @@ def request_server_part(gui_root):
     sameUserList = []
     resultUserList = []
 
-    # 연계대상 회원목록
+    # 연계대상 회원목록 루프돌며 동명이인 검증 및 약국 연계 승인 여부 검증
     for item in userInfoList['Items']:  # items 내 값 추출
         # 생년월일이 8자리일경우 6자리로 변경
         if len(item['birth']) == 8:
@@ -199,12 +209,13 @@ def request_server_part(gui_root):
         userInfoQuery.append(", RealBirth")
         userInfoQuery.append(", Sex")
         userInfoQuery.append(", HpTel")
+        userInfoQuery.append(", CertiNo")
         userInfoQuery.append("FROM dbo.PatientCustomers")
         userInfoQuery.append("WHERE RealBirth = '"+item['birth']+"'")
         userInfoQuery.append("AND CusNm = '"+item['user_name']+"'")
         userInfoQuery.append("AND Sex = '"+item['sex']+"'")
         userInfoQueryStr = " ".join(userInfoQuery)
-
+        # print("########## iniDatabaseDict['server'] 박 :: ", iniDatabaseDict['server'])
         dbConn = connDb.Manage_logcal_db(iniDatabaseDict['server'], iniDatabaseDict['database'], iniDatabaseDict['username'], iniDatabaseDict['password'])
         dbConn.conn_open()
         quertResultDf = dbConn.send_query(userInfoQueryStr)
@@ -221,7 +232,8 @@ def request_server_part(gui_root):
         if len(quertResultDf) > 1:
             print("##### (요청부) 연계회원 중 동명이인 회원이 존재합니다. 해당정보를 제외하고 연계회원을 구축합니다.")
             gui_root.textInsert(str(item['user_name']+" 회원은 동명이인 정보가 조회되어 최종연계회원에서 제외합니다."))
-            for idx in len(quertResultDf):
+            # 220310 수정 len(quertResultDf) -> range(0, len(quertResultDf))
+            for idx in range(0, len(quertResultDf)):
                 sameUserDict = dict()
                 sameUserDict['CusNo'] = quertResultDf.iloc[idx][0]
                 sameUserDict['FamNo'] = quertResultDf.iloc[idx][1]
@@ -229,15 +241,24 @@ def request_server_part(gui_root):
                 sameUserDict['CusJmno'] = quertResultDf.iloc[idx][3]
                 sameUserDict['RealBirth'] = quertResultDf.iloc[idx][4]
                 sameUserDict['Sex'] = quertResultDf.iloc[idx][5]
+                sameUserDict['CertiNo'] = quertResultDf.iloc[idx][7]
                 sameUserDict['UserId'] = item['idx']
                 sameUserDict['UserName'] = item['user_name']
                 sameUserDict['Mobile'] = item['mobile']
                 sameUserDict['birth'] = item['birth']
                 sameUserDict['regi_date'] = item['regi_date']
                 sameUserList.append(sameUserDict)
-                # TODO 중복예상회원정보 별도 처리 프로세스 필요함 (미완료)
+            # TODO 중복예상회원정보 별도 처리 프로세스 필요함 (미완료)
+            # TODO 동명이인 회원정보 API 전송
+            print("동명이인 정보를 출력합니다.")
+            print(sameUserList)
+            print("동명이인 정보를 API 전송합니다.")
+            sameReturnFlag = send_same_user_list(sameUserList, userInfoDict, dbConn, mngApi)
+            if sameReturnFlag == False:
+                print("##### 동명이인 정보 API 전송 실패")
+                return
 
-        # TODO : 일반회원의 내손안의 약국 승인정보 존재여부 확인 SELECT (완료)
+        # 일반회원의 내손안의 약국 승인정보 존재여부 확인 SELECT
         print("##### 연계 예정 회원("+quertResultDf.iloc[0][2]+")님의 연계승인정보를 조회합니다.")
         dbConn.conn_open()
         tempQuery = []
@@ -248,7 +269,7 @@ def request_server_part(gui_root):
         dbConn.conn_close()
 
         if len(queryResult) == 0:
-            # TODO : 신규연계회원 회원의 연계승인 플래그 최초저장 (완료)
+            # 신규연계회원 회원의 연계승인 플래그 최초저장
             gui_root.textInsert(str("신규연계회원("+quertResultDf.iloc[0][2]+")님의 연계신청정보를 데이터베이스에 저장합니다."))
             print("##### 신규연계회원("+quertResultDf.iloc[0][2]+")님의 플래그정보를 INSERT 처리합니다.")
             dbConn.conn_open()
@@ -328,9 +349,6 @@ def response_server_part(userInfoList, gui_root):
     common = commonCode.commonCode()
     mngApi = connApi.api_manager()  # API 전송을 위한 커넥션 생성
     dbConn = connDb.Manage_logcal_db(iniDatabaseDict['server'], iniDatabaseDict['database'],iniDatabaseDict['username'], iniDatabaseDict['password'])
-    # print("##### 1111111111111")
-    # print("##### userInfoListGlobal :: ", userInfoListGlobal)
-    # print("##### userInfoList :: ", userInfoList)
 
     # 연계 유저별 루프
     for userInfo in userInfoListGlobal:
@@ -349,7 +367,7 @@ def response_server_part(userInfoList, gui_root):
         queryArr.append("ON A.PrescriptionCd = B.PrescriptionCd")
         queryArr.append("WHERE A.CusNo = '"+userInfo['CusNo']+"'")
         # TODO 여기 아래 날자 바꿔야함. (내부 협의 후 날자 선정 필요함), 연계회원(약국)이 내손안의약국에 가입한 날자를 기준으로 하면 좋을듯
-        queryArr.append("AND A.PresDte BETWEEN CONVERT(DATE, '200101') AND CONVERT(CHAR(10), GETDATE(), 23)")   # 날자를 해당 회원이 내손안의약국에 연계 동의한 날자로 바꿔줘야함
+        queryArr.append("AND A.PresDte BETWEEN CONVERT(DATE, '"+iniDrxsDict['linkdate']+"') AND CONVERT(CHAR(10), GETDATE(), 23)")   # 날자를 해당 회원이 내손안의약국에 연계 동의한 날자로 바꿔줘야함
         queryArr.append("AND B.PrescriptionCd IS NULL")   # 전송완료 테이블에 존재하는 처방전 데이터는 재전송하지않기 위해 제외
         queryStr = " ".join(queryArr)
 
@@ -428,10 +446,37 @@ def response_server_part(userInfoList, gui_root):
                         gui_root.textInsert(str(userInfo['CusNm'] + " 사용자의 대상 처방전 청구정보 전송처리중 오류가발생하였습니다."))
                         print("##### 처방전 청구정보 전송 실패!!!")
 
+    userInfoListGlobal.clear()
+
 
 ##########################################################################################
 ####### 처방전(내역,가격,약물)정보 조회 및 API 전송 (위드팜)
 ##########################################################################################
+
+def send_same_user_list(sameuserList, pharmacyInfo, dbConn, mngApi):
+    """
+    동명이인 정보를 API 전송한다.
+    :param sameuserList: 동명이인 정보
+    :param pharmacyInfo: 약국정보
+    :param dbConn: DB Connection
+    :param mngApi: API 객체
+    :return:
+    """
+    try:
+        print("##### (동명이인정보 전송) 동명이인정보 전송을 수행합니다. ")
+        common = commonCode.commonCode()
+        returnJsonData = common.packageJsonSameUserInfo(sameuserList, pharmacyInfo)
+
+        if returnJsonData == '':
+            return False
+    except Exception as e:
+        print("(send_same_user_list) error :: ", e)
+    else:
+        checkUrl = iniDrxsDict['apiurl'] + '/setMemberPharmacySameName.drx'  # 동명이인정보전송API 주소
+        apiResultKey, apiResultDatas = mngApi.api_conn_post(checkUrl, returnJsonData)  # 동명이인정보전송
+
+        # TODO 220422 : API 결과 체크 후 return
+        return True
 
 def send_prescription(dataFrame, userInfo, dbConn, mngApi):
     """
@@ -604,6 +649,7 @@ def run_module(root):
         # 환경체크 결과값 실패일경우
         if environmentalReturn == False:
             root.textInsert("인증실패 :: 해당 약국은 현재 내손안의약국 약국회원으로 가입되지않은 회원사입니다.")
+            commonMsg.alertMessage('내손안의약국', '위드팜-내손안의약국 약국회원으로 가입되지않은 약국입니다.')
         else:  # 환경체크 성공
             root.textInsert("위드팜 - 내손안의약국 처방전 연계프로세스 환경검사를 성공하였습니다.")
             root.textInsert("----- 위드팜 회원약국 정보 -----")
