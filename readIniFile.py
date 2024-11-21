@@ -2,7 +2,7 @@
 #!/usr/bin/python
 
 import configparser
-from pprint import pprint as pp
+import traceback
 
 class Read_Ini:
     """
@@ -25,6 +25,26 @@ class Read_Ini:
             return config
         except configparser.Error as e:
             print("##### 설정정보 INI 핸들링 중 오류가 발생하였습니다.")
+
+    def update_ini_file(self, sectionName, key, value):
+        """
+        특정 섹션내 저장된 키의 값을 변경한다.
+        :param sectionName: 변경할 섹션명
+        :param key: 변경할 키의 이름
+        :param value: 변경할 키의 값
+        :return: 성공여부 True, False
+        """
+        try:
+            print("##### update_ini_file call")
+
+            iniConfiger = self.read_ini_file()
+            fs = open(self.iniPath, "w")
+            iniConfiger.set(sectionName, key, value)
+            iniConfiger.write(fs)
+            fs.close()
+        except configparser.Error as e:
+            print("##### update_ini_file error :: ", e)
+            return 'error'
 
     def read_ini_section(self, config, sectionName):
         """
@@ -73,14 +93,36 @@ class Read_Ini:
         except configparser.Error as e:
             print("##### 설정정보 INI 환경정보 딕셔너리 생성 중 오류가 발생하였습니다.")
 
+    def write_ini_file(self, section, name, value):
+        """
+        ini 파일의 특정세션의 특정값을 변경한다.
+        :return: 성공여부 True/False
+        """
+        try:
+            print("##### " + self.iniPath + "경로의 INI 파일을 쓰기처리합니다.")
+            print("(쓰기-section) :: {}".format(section))
+            print("(쓰기-name) :: {}".format(name))
+            print("(쓰기-value) :: {}".format(value))
+
+            config = configparser.ConfigParser()
+            config.read(self.iniPath, encoding='utf-8')
+            config.set(str(section), str(name), str(value))
+
+            with open(self.iniPath, 'w') as config_file:
+                config.write(config_file)
+        except BaseException as e:
+            print(traceback.format_exc())
+            return False
+        else:
+            return True
 
 
 # Press the green button in the gutter to run the script.
 # if __name__ == '__main__':
 #     print("##### read INI File")
 #
-#     #iniMng = Read_Ini('resource/WithPharmErp.ini')
-#     iniMng = Read_Ini('resource/DRxS.ini')
+#     #iniMng = Read_Ini('resources/WithPharmErp.ini')
+#     iniMng = Read_Ini('resources/DRxS.ini')
 #     iniConfiger = iniMng.read_ini_file()
 #     keyArr = iniMng.read_ini_section(iniConfiger, 'DRXS')
 #     testIniData = iniMng.get_section_value(iniConfiger, 'DRXS', keyArr)

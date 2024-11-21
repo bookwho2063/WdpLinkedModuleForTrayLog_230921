@@ -10,6 +10,15 @@ def alertMessage(msgTitle, msg):
     """
     tkinter.messagebox.showinfo(msgTitle, msg)
 
+def confirmMessage(msgTitle, msg):
+    """
+
+    :param msgTitle:
+    :param msg:
+    :return:
+    """
+    return tkinter.messagebox.askquestion(msgTitle, msg, icon='warning')
+
 # Press the green button in the gutter to run the script.
 # if __name__ == '__main__':
 #     print('window msg common loaded')

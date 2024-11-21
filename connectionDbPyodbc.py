@@ -1,164 +1,10 @@
 import sys
+import time
+
 import pyodbc
-import windowMsgCommon as commonMsg
 import pandas as pd
-
-"""
-# 필요 쿼리 목록
-# 1. 약국회원정보 조회 (위드팜/약정원)
-SELECT
-	CusNo
-	, CusNm
-	, HpTel
-FROM dbo.PatientCustomers
-
-# 단골회원의 약국방문기록 확인
-SELECT 
-	CusNo 
-	, FamNo 
-	, CusNm 
-	, CusJmno 
-	, RealBirth
-	, Email
-	, ZipCd
-	, Add1
-	, Add2
-	, HomeTel
-	, HpTel
-	, Relation
-	, PromissNo
-	, CertiNo
-	, RootCusNm
-	, CusInfo
-	, JmnoChk
-	, SysDte
-	, SysUsr
-	, FirstDt
-	, Sex
-	, EngCusNm
-	, ForeignNo
-	, PassPortNo
-FROM dbo.PatientCustomers
-WHERE RealBirth = ''
-AND CusNm = ''
-AND Sex = ''
-   
-# 2. 단골회원정보 조회 (로컬DB -> 위드팜/약정원)
-SELECT 
-	PC.CusNo 
-	, PC.FamNo 
-	, PC.CusNm 
-	, PC.CusJmno 
-	, PC.RealBirth 
-	, PC.Email 
-	, PC.ZipCd 
-	, PC.Add1 
-	, PC.Add2 
-	, PC.HomeTel 
-	, PC.HpTel 
-	, PC.Relation 
-	, PC.PromissNo 
-	, PC.CertiNo 
-	, PC.RootCusNm 
-	, PC.CusInfo 
-	, PC.JmnoChk 
-	, PC.SysDte 
-	, PC.SysUsr 
-	, PC.FirstDt 
-	, PC.Sex 
-	, PC.EngCusNm 
-	, PC.ForeignNo 
-	, PC.PassPortNo 
-	, DC.PharmAuthFlag
-	, DC.CustomerAuthFlag
-	, DC.PharmAuthDte
-	, DC.CustomerAuthDte
-FROM dbo.PatientCustomers AS PC
-INNER JOIN dbo.DrxsCustomersAuth AS DC
-ON DC.CusNo = PC.CusNo
-WHERE DC.CustomerAuthFlag = 'Y'
-
-# 3. 단골회원 휴대전화번호 업데이트 (로컬DB -> 위드팜/약정원)
-UPDATE dbo.PatientCustomers
-SET
-	HpTel = '01028501490'
-WHERE CusNo = 'C20200400001'
-
-
-# 4. 단골회원의 처방전 내역 조회 (로컬DB -> 위드팜/약정원)
-SELECT 
-	PrescriptionCd 
-	, CusNo 
-	, InsuGb 
-	, CareGb 
-	, InsuEtc 
-	, SendGb 
-	, RootCusNm 
-	, PromissNo 
-	, InsuNo 
-	, CusNm 
-	, CusJmno 
-	, HospitalNo 
-	, Doctor 
-	, DoctorSeq 
-	, MakeDte 
-	, PregYn 
-	, MakeDay 
-	, ConDay 
-	, PresDte 
-	, PresNo 
-	, UseDay 
-	, DisCd1 
-	, DisCd2 
-	, SpecialCd 
-	, LicenseNo 
-	, BabyYn 
-	, OverTime 
-	, UserTime 
-	, StateGb 
-	, CareHospitalGb 
-	, RDte 
-	, RUser 
-	, MDte 
-	, MUser 
-	, CDte 
-	, CUser 
-	, DelYn 
-	, ErrGb 
-	, LabelYn 
-	, PrescriptionSeq 
-	, NimsGb 
-	, PowderYn 
-FROM dbo.Prescription
-WHERE CusNo = ''
-AND CONVERT(DATE, MakeDte) >= CONVERT(DATE, '날짜8자리')
-
-# 5. 단골회원의 처방전 결재내역 조회 (로컬DB -> 위드팜/약정원)
-SELECT  
-	PrescriptionCd 
-	, tAmt1 
-	, sAmt 
-	, BillAmt 
-	, SupportAmt 
-	, tAmt2 
-	, mBillAmt 
-	, DrugDiffAmt 
-	, TotAmt 
-	, t100Amt 
-	, mAmt 
-	, t100mAmt 
-	, s100mAmt 
-	, Bill100mtAmt 
-	, Bill100mmAmt 
-	, Rate 
-	, TotalSelfAmt 
-	, mTotBAmt 
-	, mBillBAmt 
-	, TotalAmt 
-	, BExcept 
-FROM dbo.PrescriptionAmt
-WHERE PrescriptionCd = 'A20200300001'
-"""
+import traceback
+import commonCode
 
 class Manage_logcal_db:
     """
@@ -169,7 +15,7 @@ class Manage_logcal_db:
     conn = ''
     cursor = ''
 
-    def __init__(self, server, database, username, password):
+    def __init__(self, server, database, username, password, conntime=1800):
         """
         MS-SQL 관리 클래스 초기화
         :param server: 서버정보 (localhost\TOOD2008)
@@ -179,24 +25,47 @@ class Manage_logcal_db:
         """
         self.server = server
         self.database = database
-        self.username = username
-        self.password = password
+        self.username = "sa"
+        self.password = "$dnlemvka3300$32!"
+        self.re_conn_time = conntime
 
     def conn_open(self):
         """
         MS-SQL 커넥션 생성
         :return:
         """
+        print("(로그) DB Connection 을 수행합니다.")
+        print("(openDB) self.server :: ", self.server)
+        print("(openDB) self.user :: ", self.username)
+        print("(openDB) self.password :: ", self.password)
+        print("(openDB) self.dbName :: ", self.database)
+        print("(openDB) self.re_conn_time :: ", self.re_conn_time)
         try:
-            self.conn = pyodbc.connect(
-                'DRIVER={ODBC Driver 17 for SQL Server};SERVER=' + self.server + ';DATABASE=' + self.database + ';UID=' + self.username + ';PWD=' + self.password)
+            self.conn = pyodbc.connect('DRIVER={ODBC Driver 17 for SQL Server};SERVER=' + self.server + ';DATABASE=' + self.database + ';UID=' + self.username + ';PWD=' + self.password)
             self.cursor = self.conn.cursor()
-            print('##### connection Success!!')
-            #commonMsg.alertMessage('내손안의약국', '로컬 DB 연결성공')
-        except pyodbc.Error as e:
-            print('##### connection Error!!')
-            commonMsg.alertMessage('내손안의약국', '로컬 DB 연결실패!\n관리자문의바랍니다.')
-            sys.exit("Local Database Not Connection")
+            print("dbName:", self.database)
+            print("(로그) DB Connection 수행을 완료하였습니다.")
+        except BaseException as e:
+            print('##### connection Error!! :: ', e)
+
+            # TODO 23.10.24 connection error 시 오류내역을 API로 전달하고, 재귀 수행한다.
+            print("## DB 연결을 재귀수행합니다.")
+            sys.setrecursionlimit(1000)
+            # sys.setrecursionlimit(10**5)
+
+            # DB 연결 실패시 재연결 대기를 30분으로 조정
+            # 대기상태의 setrecursionlimit 최대재귀깊이(횟수)가 넘을 것을 대비하여 재연결 대기는 30분으로 고정
+            #
+            time.sleep(float(self.re_conn_time))
+            self.conn_open()
+
+            return False
+            # return traceback.format_exc()
+            # commonMsg.alertMessage('내손안의약국', '로컬 DB 연결실패!\n관리자문의바랍니다.')
+            # sys.exit("Local Database Not Connection")
+        else:
+            print("##### DB Connection Success")
+            return True
 
     def conn_close(self):
         """
@@ -208,8 +77,8 @@ class Manage_logcal_db:
             print("##### DB Connection Close Success!!")
         except pyodbc.Error as e:
             print("##### DB Connection Close Error!! :: ", e)
-            commonMsg.alertMessage('내손안의약국', '로컬 DB 연결종료실패!\n관리자문의바랍니다.')
-            sys.exit("Local Database Close Failed")
+            # commonMsg.alertMessage('내손안의약국', '로컬 DB 연결종료실패!\n관리자문의바랍니다.')
+            # sys.exit("Local Database Close Failed")
 
     def send_sample_query(self):
         """
@@ -249,21 +118,34 @@ class Manage_logcal_db:
         :return:
         """
         print("##### (send_query) Query :: ", queryArr)
+        try:
+            dataFrame = pd.read_sql_query(queryArr, self.conn)
+        except pd.errors.DatabaseError as e:
+            common_log = commonCode.commonLog('', '', '999999')
+            err_msg = 'QUERY :: {} ERROR :: {}'.format(queryArr, traceback.format_exc())
+            print("## sendAPI error msg :: {}".format(err_msg))
+            common_log.send_api_log("ERR-001", err_msg)
+            return False
+        else:
+            return dataFrame
 
-        dataFrame = pd.read_sql_query(queryArr, self.conn)
-        # print("##### dataFrame :: ", dataFrame)
-        # print("##### dataFrame.len :: ", len(dataFrame))
-        # print("##### dataFrame.empty :: ", dataFrame.empty)
-
-        # self.cursor.execute(queryArr)
-        #
-        # queryResultArr = []
-        # for row in self.cursor:
-        #     queryResultArr.append(row)
-        #
-        # print("##### 쿼리 결과입니다 :: ", queryResultArr)
-        # print("##### 쿼리 결과length :: ", len(queryResultArr))
-        return dataFrame
+    def send_query_update(self, queryMsg):
+        """
+        쿼리 발송 처리 (UPDATE 용 쿼리- pandas에서는 UPDATE 가 UPSERT 로 동작하는데, 유니크키가없으면 동작하지않으므로 별도제작)
+        :param queryMsg:
+        :return: 결과데이터를 pandas dataframe 처리하여 리턴
+        """
+        try:
+            count = self.cursor.execute(queryMsg)
+            print("## query count :: {}".format(self.cursor.rowcount))
+        except BaseException as e:
+            print("(에러) sendQuery 중 오류가 발생하였습니다.", e)
+            print(traceback.format_exc())
+            self.conn.rollback()
+            return 'DB_SEND_QUERY_ERROR'
+        else:
+            self.conn.commit()
+            return self.cursor.rowcount
 
     def send_query_prelink_insert(self, dataArray):
         """
@@ -272,10 +154,60 @@ class Manage_logcal_db:
         :return: 전송결과
         """
         try:
-            count = self.cursor.execute("""INSERT INTO dbo.DrxsPrescriptionLinkInfo (CusNo, UserId, PrescriptionCd, TransStatus) VALUES (?,?,?,?)""", dataArray[0], dataArray[1], dataArray[2], dataArray[3])
+            count = self.cursor.execute("""INSERT INTO WithpharmDrx.dbo.DrxsPrescriptionLinkInfo (CusNo, UserId, PrescriptionCd, TransStatus, TransDt, AuthTableFlag) VALUES (?,?,?,?,GETDATE(),?)""", dataArray[0], dataArray[1], dataArray[2], dataArray[3], dataArray[5])
             self.conn.commit()
         except Exception as e:
             print("##### (send_query_insert) Error :: ", e)
+            return False
+        else:
+            return True
+
+    def update_ci_query(self, item):
+        """
+        CI 정보를 UPDATE 처리한다.
+        :param item: 생성 쿼리 item 정보 (단골회원정보 dict)
+        :return:
+        """
+        try:
+            update_query = []
+            update_query.append("UPDATE WithpharmDrx.dbo.DrxsCustomersAuth SET")
+            update_query.append("UserSmsCi = '" + item['sms_ci'] + "'")
+            update_query.append(", UserSmsCiDte = GETDATE()")
+            update_query.append("WHERE 1=1")
+            update_query.append("AND UserId = '" + item['idx'] + "'")
+            update_query.append("AND UserSmsCi IS NULL OR UserSmsCi = ''")
+
+            update_sql = " ".join(update_query)
+
+            print("## (CI-UPDATE-SQL) :: {}".format(update_sql))
+
+            count = self.cursor.execute(update_sql)
+            self.conn.commit()
+        except Exception as e:
+            print("##### (UPDATE) Error :: ", e)
+            print(traceback.format_exc())
+
+    def delete_ci_query(self):
+        """
+        AUTH 테이블 내 공백 CI 필드 데이터를 삭제 처리한다.
+        :return:
+        """
+        try:
+            print("## WithpharmDrx.dbo.DrxsCustomersAuth CI 미존재 데이터 삭제 ")
+            delete_query_list_ci = []
+            delete_query_list_ci.append("DELETE FROM WithpharmDrx.dbo.DrxsCustomersAuth")
+            delete_query_list_ci.append("WHERE 1=1")
+            delete_query_list_ci.append("AND UserSmsCi = '' OR UserSmsCi IS NULL")
+
+            delete_query_ci = " ".join(delete_query_list_ci)
+
+            count = self.cursor.execute(delete_query_ci)
+            self.conn.commit()
+
+            print("## DrxsCustomersAuth1 공백 CI 데이터를 삭제 정리 프로세스 완료 ")
+        except Exception as e:
+            print("##### (UPDATE) Error :: ", e)
+            print(traceback.format_exc())
 
 
 
@@ -286,7 +218,7 @@ class Manage_logcal_db:
         :return: 전송결과
         """
         try:
-            count = self.cursor.execute("""INSERT INTO dbo.DrxsCustomersAuth (CusNo, UserId, CustomerAuthFlag, PharmAuthFlag, CustomerAuthDte) VALUES (?,?,?,'N',GETDATE())""", dataArray[0], dataArray[1], dataArray[2])
+            count = self.cursor.execute("""INSERT INTO WithpharmDrx.dbo.DrxsCustomersAuth (CusNo, UserId, CustomerAuthFlag, PharmAuthFlag, CustomerAuthDte) VALUES (?,?,?,'N',GETDATE())""", dataArray[0], dataArray[1], dataArray[2])
             self.conn.commit()
         except Exception as e:
             print("##### (send_query_authinfo_insert) Error :: ", e)
@@ -298,7 +230,7 @@ class Manage_logcal_db:
         :return:
         """
         try:
-            count = self.cursor.execute("""UPDATE dbo.DrxsCustomersAuth SET CustomerAuthFlag = ?, CustomerAuthDte = GETDATE() WHERE CusNo = ?""", dataArray[0], dataArray[1])
+            count = self.cursor.execute("""UPDATE WithpharmDrx.dbo.DrxsCustomersAuth SET CustomerAuthFlag = ?, CustomerAuthDte = GETDATE() WHERE CusNo = ?""", dataArray[0], dataArray[1])
             self.conn.commit()
         except Exception as e:
             print("##### (send_query_userAuth_update) Error :: ", e)

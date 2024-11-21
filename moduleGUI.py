@@ -25,7 +25,7 @@ class moduleGui:
         print("##### 윈도우 객체를 생성합니다.")
         try:
             root = Tk()
-            root.title("내손안의약국-처방전연계모듈")
+            root.title("내손안의약국-처방전연계모듈___")
             root.geometry("640x380")
             root.resizable(False, False)
 
